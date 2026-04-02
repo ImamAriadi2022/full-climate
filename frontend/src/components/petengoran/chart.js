@@ -16,45 +16,47 @@ import {
 
 export function resampleTimeSeriesWithMeanFill(data, intervalMinutes, fields) {
   if (!Array.isArray(data) || data.length === 0) return [];
-  data = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-  const start = new Date(data[0].timestamp);
-  const now = new Date(); // gunakan waktu sekarang sebagai end
-  let result = [];
-  let current = new Date(start);
 
-  // Ambil data jam terakhir untuk pengisian slot kosong
-  const lastData = data[data.length - 1];
+  const sorted = [...data]
+    .filter((item) => item?.timestamp)
+    .map((item) => ({ ...item, _date: new Date(item.timestamp) }))
+    .filter((item) => !isNaN(item._date.getTime()))
+    .sort((a, b) => a._date - b._date);
 
-  while (current < now) {
-    const currentTime = new Date(current);
-    let next = new Date(currentTime);
-    next.setMinutes(next.getMinutes() + intervalMinutes);
+  if (sorted.length === 0) return [];
 
-    let slotData = data.filter(item => {
-      let t = new Date(item.timestamp);
-      return t >= currentTime && t < next;
+  const intervalMs = intervalMinutes * 60 * 1000;
+  const buckets = new Map();
+
+  sorted.forEach((item) => {
+    const bucketTs = Math.floor(item._date.getTime() / intervalMs) * intervalMs;
+    if (!buckets.has(bucketTs)) {
+      buckets.set(bucketTs, []);
+    }
+    buckets.get(bucketTs).push(item);
+  });
+
+  return Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucketTs, items]) => {
+      const resampled = { timestamp: new Date(bucketTs).toISOString() };
+
+      fields.forEach((field) => {
+        const numericValues = items
+          .map((it) => Number(it[field]))
+          .filter((val) => Number.isFinite(val));
+
+        if (numericValues.length === 0) {
+          resampled[field] = null;
+          return;
+        }
+
+        const mean = numericValues.reduce((sum, val) => sum + val, 0) / numericValues.length;
+        resampled[field] = Number(mean.toFixed(2));
+      });
+
+      return resampled;
     });
-
-    let resampled = { timestamp: currentTime.toISOString() };
-    fields.forEach(field => {
-      let value;
-      if (slotData.length === 0) {
-        // Isi dengan data jam terakhir + variasi random ±2%
-        const base = parseFloat(lastData[field]) || 0;
-        const variation = base * 0.02 * (Math.random() - 0.5) * 2;
-        value = base + variation;
-      } else {
-        // Rata-rata slot + variasi random ±2%
-        const mean = slotData.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0) / slotData.length;
-        const variation = mean * 0.02 * (Math.random() - 0.5) * 2;
-        value = mean + variation;
-      }
-      resampled[field] = isNaN(value) ? null : Number(value.toFixed(2));
-    });
-    result.push(resampled);
-    current = next;
-  }
-  return result;
 }
 
 
@@ -68,31 +70,12 @@ const TrendChart = ({ data, fields }) => {
   const [showDetail, setShowDetail] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState(null);
   const [interval, setInterval] = useState(15); // 15 or 30
-  const [range, setRange] = useState('1d'); // '1d', '7d', '1m'
-
-  // Filter data by range (fungsi sudah benar)
-  const filterByRange = (data, filter) => {
-    if (!Array.isArray(data) || data.length === 0) return [];
-    const now = new Date();
-    let minDate;
-    if (filter === '1d') minDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    else if (filter === '7d') minDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    else if (filter === '1m') minDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    else minDate = null;
-    return minDate
-      ? data.filter(d => {
-          const t = new Date(d.timestamp);
-          return t >= minDate && t <= now;
-        })
-      : data;
-  };
 
 
     // Resample and filter data for modal chart
     const modalData = (() => {
-      // Ambil data sesuai filter range dan interval
-      let filtered = filterByRange(data, range); // <-- filter sesuai range
-      let resampled = resampleTimeSeriesWithMeanFill(filtered, interval, [selectedMetric]);
+      if (!selectedMetric) return [];
+      let resampled = resampleTimeSeriesWithMeanFill(data, interval, [selectedMetric]);
       return resampled;
     })();
 
@@ -183,26 +166,6 @@ const TrendChart = ({ data, fields }) => {
                         onClick={() => setInterval(30)}
                       >
                         30 Menit
-                      </Button>
-                    </ButtonGroup>
-                    <ButtonGroup>
-                      <Button
-                        variant={range === '1d' ? 'success' : 'outline-success'}
-                        onClick={() => setRange('1d')}
-                      >
-                        1 Hari Terakhir
-                      </Button>
-                      <Button
-                        variant={range === '7d' ? 'success' : 'outline-success'}
-                        onClick={() => setRange('7d')}
-                      >
-                        7 Hari Terakhir
-                      </Button>
-                      <Button
-                        variant={range === '1m' ? 'success' : 'outline-success'}
-                        onClick={() => setRange('1m')}
-                      >
-                        1 Bulan Terakhir
                       </Button>
                     </ButtonGroup>
                   </div>

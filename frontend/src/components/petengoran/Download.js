@@ -180,6 +180,7 @@ const Download = () => {
   const [password, setPassword] = useState('');
   const [station1Data, setStation1Data] = useState([]);
   const [station2Data, setStation2Data] = useState([]);
+  const [dataSourceMode, setDataSourceMode] = useState('realtime');
   const [loading, setLoading] = useState(false);
   const [dataReady, setDataReady] = useState(false);
 
@@ -188,6 +189,34 @@ const Download = () => {
   const [resampleInterval, setResampleInterval] = useState(15);
   const [resampleMethod, setResampleMethod] = useState('mean');
 
+  const getSimulationApiUrl = (primaryUrl) => {
+    if (!primaryUrl) return null;
+
+    try {
+      const parsed = new URL(primaryUrl);
+      return `${parsed.origin}/simulate/petengoran/topic4/history?limit=500`;
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const parseApiRows = (payload) => {
+    if (Array.isArray(payload?.result)) return payload.result;
+    if (Array.isArray(payload?.data?.result)) return payload.data.result;
+    if (Array.isArray(payload)) return payload;
+    return [];
+  };
+
+  const fetchMappedData = async (url, mapper) => {
+    if (!url) return [];
+
+    const response = await fetch(url);
+    if (!response.ok) return [];
+
+    const json = await response.json();
+    return parseApiRows(json).map(mapper);
+  };
+
   // Fetch data dari API saat komponen mount
   useEffect(() => {
     const fetchData = async () => {
@@ -195,16 +224,15 @@ const Download = () => {
         // Hapus setLoading(true) untuk menghilangkan delay visual
         setDataReady(false);
 
+        const station1Url = dataSourceMode === 'simulation' ? getSimulationApiUrl(API_STATION1) : API_STATION1;
+        const station2Url = dataSourceMode === 'simulation' ? getSimulationApiUrl(API_STATION2) : API_STATION2;
+
         // Fetch Station 1
-        const res1 = await fetch(API_STATION1);
-        const json1 = res1.ok ? await res1.json() : { data: { result: [] } };
-        const station1Data = Array.isArray(json1.data?.result) ? json1.data.result.map(mapStation1) : [];
+        const station1Data = await fetchMappedData(station1Url, mapStation1);
         setStation1Data(station1Data);
 
         // Fetch Station 2
-        const res2 = await fetch(API_STATION2);
-        const json2 = res2.ok ? await res2.json() : { data: { result: [] } };
-        const station2Data = Array.isArray(json2.data?.result) ? json2.data.result.map(mapStation2) : [];
+        const station2Data = await fetchMappedData(station2Url, mapStation2);
         setStation2Data(station2Data);
 
         setDataReady(true);
@@ -216,7 +244,11 @@ const Download = () => {
       // Hapus finally block setLoading(false)
     };
     fetchData();
-  }, []);
+  }, [dataSourceMode]);
+
+  const handleSimulationToggle = () => {
+    setDataSourceMode((prev) => (prev === 'simulation' ? 'realtime' : 'simulation'));
+  };
 
   const handleDownload = () => {
     setShowLogin(true);
@@ -402,6 +434,19 @@ const Download = () => {
               <option value="Station 2">Station 2</option>
             </Form.Select>
           </Form.Group>
+          <div className="mt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={dataSourceMode === 'simulation' ? 'warning' : 'outline-warning'}
+              onClick={handleSimulationToggle}
+            >
+              Simulasi {dataSourceMode === 'simulation' ? 'ON' : 'OFF'}
+            </Button>
+            <div className="mt-2 text-muted" style={{ fontSize: '0.9rem' }}>
+              Sumber data: {dataSourceMode === 'simulation' ? 'Simulasi' : 'Realtime'}
+            </div>
+          </div>
         </Col>
       </Row>
 

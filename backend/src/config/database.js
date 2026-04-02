@@ -6,6 +6,8 @@ const sharedDbConfig = {
   port: env.db.port,
   user: env.db.user,
   password: env.db.password,
+  connectionTimeoutMillis: env.db.connectionTimeoutMs,
+  query_timeout: env.db.queryTimeoutMs,
 };
 
 const createPool = (database) => {

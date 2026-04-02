@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const swaggerUi = require("swagger-ui-express");
+const { petengoranStationRouter } = require("./routes/petengoranStationRoutes");
 const { topic4Router } = require("./routes/topic4Routes");
 const { simulationRouter } = require("./routes/simulationRoutes");
 const { healthRouter } = require("./routes/healthRoutes");
@@ -357,6 +358,7 @@ app.get("/docs/sidebar.js", (_req, res) => {
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiDocument, swaggerUiOptions));
 
 app.use(healthRouter);
+app.use(petengoranStationRouter);
 app.use(topic4Router);
 app.use(simulationRouter);
 

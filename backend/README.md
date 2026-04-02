@@ -20,8 +20,14 @@ npm run dev
 
 ## Endpoint
 
+- `GET /petengoran/station1/latest`
+- `GET /petengoran/station1/history`
+- `GET /petengoran/station2/latest`
+- `GET /petengoran/station2/history`
 - `GET /petengoran/topic4/latest`
 - `GET /petengoran/topic4/history`
+- `GET /petengoran/topic5/latest`
+- `GET /petengoran/topic5/history`
 - `GET /dashboard/topic4/latest`
 - `GET /dashboard/topic4/history`
 - `GET /simulate/:source/topic4/latest`
@@ -32,6 +38,7 @@ npm run dev
 
 Catatan kompatibilitas:
 - Endpoint lama `GET /petengoran/topic4`, `GET /dashboard/topic4` tetap tersedia sebagai alias ke mode `history`.
+- Endpoint alias baru `GET /petengoran/topic5` juga tersedia untuk mode `history` Station 2.
 
 Perilaku endpoint topic4:
 - `latest`: ambil 1 data terbaru.

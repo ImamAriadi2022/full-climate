@@ -25,6 +25,8 @@ const env = {
     port: parsePositiveInteger(process.env.DB_PORT, 5432),
     user: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
+    connectionTimeoutMs: parsePositiveInteger(process.env.DB_CONNECTION_TIMEOUT_MS, 5000),
+    queryTimeoutMs: parsePositiveInteger(process.env.DB_QUERY_TIMEOUT_MS, 10000),
     names: {
       petengoran: process.env.DB_NAME,
       dashboard: process.env.DB_NAME_DASHBOARD || process.env.DB_NAME,

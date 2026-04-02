@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Col, Container, Row, Table } from 'react-bootstrap';
+import { useEffect, useRef, useState } from 'react';
+import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import AirPressureGauge from './status/AirPressure';
 import HumidityGauge from './status/HumidityGauge';
@@ -77,6 +77,24 @@ const formatUserFriendlyTimestamp = (timestamp) => {
 const isValidValue = (val) =>
   val !== null && val !== undefined && val !== 'error' && val !== 'alat rusak' && !isNaN(Number(val));
 
+const hasAllActiveSensorValue = (item) => {
+  if (!item || item.timestamp === 'error' || item.timestamp === 'alat rusak') return false;
+
+  const keys = [
+    'humidity',
+    'temperature',
+    'rainfall',
+    'windspeed',
+    'irradiation',
+    'angle',
+    'bmptemperature',
+    'airpressure',
+    'suhuair',
+  ];
+
+  return keys.every((key) => typeof item[key] === 'number' && !isNaN(item[key]));
+};
+
 
 const parseCustomTimestamp = (ts) => {
   // Format: "28-07-25 06:30:00" => "2025-07-28T06:30:00"
@@ -142,33 +160,23 @@ const mapApiData = (item) => {
 
 function filterByRange(data, filter) {
   if (!Array.isArray(data) || data.length === 0) return [];
-  const timestamps = data
-    .map(d => new Date(d.timestamp))
-    .filter(d => !isNaN(d.getTime()));
-  if (timestamps.length === 0) return [];
-  const maxDate = new Date(Math.max(...timestamps));
+  const now = new Date();
   let minDate;
-  if (filter === '1d') minDate = new Date(maxDate.getTime() - 24 * 60 * 60 * 1000);
-  else if (filter === '7d') minDate = new Date(maxDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-  else if (filter === '1m') minDate = new Date(maxDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (filter === '1d') minDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  else if (filter === '7d') minDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  else if (filter === '1m') minDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   else minDate = null;
 
   return minDate
     ? data.filter(d => {
         const t = new Date(d.timestamp);
-        return t >= minDate && t <= maxDate;
+        return t >= minDate && t <= now;
       })
     : data;
 }
 
 const Station1 = () => {
-  const [filter] = useState('1d');
-  const [allData, setAllData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
-  const [tableData, setTableData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [gaugeData, setGaugeData] = useState({
+  const emptyGaugeData = {
     humidity: 0,
     temperature: 0,
     rainfall: 0,
@@ -179,30 +187,137 @@ const Station1 = () => {
     bmptemperature: 0,
     airpressure: 0,
     suhuair: 0,
-  });
+  };
+
+  const [filter, setFilter] = useState('1d');
+  const [allData, setAllData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
+  const [tableData, setTableData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastActiveTimestamp, setLastActiveTimestamp] = useState(null);
+  const [gaugeMode, setGaugeMode] = useState('realtime');
+  const [dataSourceMode, setDataSourceMode] = useState('realtime');
+  const [lastActiveGaugeData, setLastActiveGaugeData] = useState(null);
+  const [realtimeGaugeData, setRealtimeGaugeData] = useState(emptyGaugeData);
+  const [gaugeData, setGaugeData] = useState(emptyGaugeData);
+  const latestRequestRef = useRef(0);
 
   const API_URL = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1;
+  const getTargetRecordCount = (filterType) => {
+    if (filterType === '1d') return 200;
+    if (filterType === '7d') return 1200;
+    if (filterType === '1m') return 3200;
+    return 500;
+  };
+
+  const buildPagedUrl = (baseUrl, limit, offset) => {
+    const parsed = new URL(baseUrl);
+    parsed.searchParams.set('limit', String(limit));
+    parsed.searchParams.set('offset', String(offset));
+    return parsed.toString();
+  };
+
+  const getSimulationApiUrl = (primaryUrl) => {
+    if (!primaryUrl) return null;
+
+    try {
+      const parsed = new URL(primaryUrl);
+      return `${parsed.origin}/simulate/petengoran/topic4/history?limit=500`;
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const fetchJsonOrThrow = async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      let backendMessage = "";
+      try {
+        const errorBody = await response.json();
+        backendMessage = errorBody?.message || "";
+      } catch (_error) {
+        // Ignore JSON parse errors for non-JSON responses.
+      }
+
+      const error = new Error(
+        backendMessage
+          ? `HTTP error! status: ${response.status} - ${backendMessage}`
+          : `HTTP error! status: ${response.status}`
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    return response.json();
+  };
+
+  const fetchPagedResult = async (baseUrl, sourceMode, filterType) => {
+    const pageLimit = sourceMode === 'simulation' ? 200 : 500;
+    const targetCount = getTargetRecordCount(filterType);
+    const maxPages = sourceMode === 'simulation' ? 8 : 12;
+    const rows = [];
+
+    for (let page = 0; page < maxPages && rows.length < targetCount; page += 1) {
+      const offset = page * pageLimit;
+      const pagedUrl = buildPagedUrl(baseUrl, pageLimit, offset);
+      const pageData = await fetchJsonOrThrow(pagedUrl);
+
+      const chunk = Array.isArray(pageData?.result)
+        ? pageData.result
+        : Array.isArray(pageData?.data?.result)
+          ? pageData.data.result
+          : Array.isArray(pageData)
+            ? pageData
+            : [];
+
+      if (chunk.length === 0) break;
+      rows.push(...chunk);
+
+      if (chunk.length < pageLimit) break;
+    }
+
+    return rows;
+  };
 
 
-  const fetchData = async () => {
+  const fetchData = async (sourceMode = 'realtime', filterType = filter) => {
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
+
     // Hapus setLoading(true) agar tidak ada loading indicator visual
     setError(null);
     try {
-      const url = API_URL;
+      const url =
+        sourceMode === 'simulation' ? getSimulationApiUrl(API_URL) : API_URL;
       if (!url) throw new Error(`No API URL configured`);
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
+      const rawRows = await fetchPagedResult(url, sourceMode, filterType);
+
+      if (requestId !== latestRequestRef.current) {
+        return;
+      }
+
       // Urutkan data dari yang terbaru
-      let result = Array.isArray(data.data?.result) ? data.data.result : [];
-      result = result
+      const result = rawRows
         .map(mapApiData)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // terbaru di atas
-      result = result.slice(0, 10); // ambil 10 data terbaru
+
+      const latestActive = result.find(hasAllActiveSensorValue);
+      setLastActiveTimestamp(latestActive ? latestActive.timestamp : null);
+      setLastActiveGaugeData(latestActive ? latestActive : null);
+      setDataSourceMode(sourceMode);
+
       setAllData(result);
     } catch (err) {
+      if (requestId !== latestRequestRef.current) {
+        return;
+      }
+
+      setDataSourceMode(sourceMode);
       setError(`Failed to fetch data: ${err.message}`);
       setAllData([]);
+      setLastActiveTimestamp(null);
+      setLastActiveGaugeData(null);
     }
     // Hapus finally block setLoading(false)
   };
@@ -210,20 +325,34 @@ const Station1 = () => {
 
 
   useEffect(() => {
-    fetchData();
+    fetchData('realtime', '1d');
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    fetchData(dataSourceMode, filter);
+    // eslint-disable-next-line
+  }, [filter]);
+
+  const handleSimulationToggle = () => {
+    if (dataSourceMode === 'simulation') {
+      fetchData('realtime', filter);
+      return;
+    }
+
+    fetchData('simulation', filter);
+  };
 
     useEffect(() => {
       const filtered = filterByRange(allData, filter);
       setFilteredData(filtered);
   
-      // Resample data per 1 menit
+      // Konsistenkan data tabel per 15 menit
       const fields = [
         'humidity', 'temperature', 'rainfall', 'windspeed', 'irradiation',
         'angle', 'airpressure', 'bmptemperature', 'suhuair'
       ];
-      const resampled = resampleTimeSeriesWithMeanFill(filtered, 1, fields);
+      const resampled = resampleTimeSeriesWithMeanFill(filtered, 15, fields);
   
       // Ambil 10 data terakhir (paling baru) dari hasil resampling
       const sorted = [...resampled].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -231,35 +360,34 @@ const Station1 = () => {
   
       setTableData(last10);
   
-      const latestResampled = last10[0];
-      if (latestResampled) {
-      setGaugeData({
-        humidity: latestResampled.humidity,
-        temperature: latestResampled.temperature,
-        rainfall: latestResampled.rainfall,
-        windspeed: latestResampled.windspeed,
-        irradiation: latestResampled.irradiation,
-        windDirection: latestResampled.windDirection,
-        angle: latestResampled.angle,
-        bmptemperature: latestResampled.bmptemperature,
-        airpressure: latestResampled.airpressure,
-        suhuair: latestResampled.suhuair,
-      });
-    } else {
-      setGaugeData({
-        humidity: 0,
-        temperature: 0,
-        rainfall: 0,
-        windspeed: 0,
-        irradiation: 0,
-        windDirection: '',
-        angle: 0,
-        bmptemperature: 0,
-        airpressure: 0,
-        suhuair: 0,
-      });
-    }
+      // Mode realtime hanya pakai data yang semua sensornya valid (alat aktif penuh)
+      const latestFullyActiveRealtime = last10.find(hasAllActiveSensorValue);
+      if (latestFullyActiveRealtime) {
+        setRealtimeGaugeData({
+          humidity: latestFullyActiveRealtime.humidity,
+          temperature: latestFullyActiveRealtime.temperature,
+          rainfall: latestFullyActiveRealtime.rainfall,
+          windspeed: latestFullyActiveRealtime.windspeed,
+          irradiation: latestFullyActiveRealtime.irradiation,
+          windDirection: latestFullyActiveRealtime.windDirection,
+          angle: latestFullyActiveRealtime.angle,
+          bmptemperature: latestFullyActiveRealtime.bmptemperature,
+          airpressure: latestFullyActiveRealtime.airpressure,
+          suhuair: latestFullyActiveRealtime.suhuair,
+        });
+      } else {
+        setRealtimeGaugeData(emptyGaugeData);
+      }
   }, [allData, filter]);
+
+  useEffect(() => {
+    if (gaugeMode === 'last-active' && lastActiveGaugeData) {
+      setGaugeData(lastActiveGaugeData);
+      return;
+    }
+
+    setGaugeData(realtimeGaugeData);
+  }, [gaugeMode, lastActiveGaugeData, realtimeGaugeData]);
 
   return (
     <section
@@ -282,6 +410,46 @@ const Station1 = () => {
                   <strong>Error:</strong> {error}
                 </div>
               )}
+            </div>
+          </Col>
+        </Row>
+                <Row className="mt-3 mb-2">
+          <Col className="text-center">
+            <div style={{ color: '#495057', fontWeight: 600 }}>
+              Terakhir data alat aktif:{' '}
+              <span style={{ color: '#0d6efd' }}>
+                {lastActiveTimestamp ? formatUserFriendlyTimestamp(lastActiveTimestamp) : 'Belum ada data aktif'}
+              </span>
+            </div>
+            <div style={{ color: '#495057', fontWeight: 600 }} className="mt-1">
+              Sumber data:{' '}
+              <span style={{ color: dataSourceMode === 'simulation' ? '#fd7e14' : '#0d6efd' }}>
+                {dataSourceMode === 'simulation' ? 'Simulasi' : 'Realtime'}
+              </span>
+            </div>
+            <div className="mt-2 d-inline-flex gap-2">
+              <button
+                type="button"
+                className={`btn btn-sm ${gaugeMode === 'realtime' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setGaugeMode('realtime')}
+              >
+                Mode Realtime
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${gaugeMode === 'last-active' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setGaugeMode('last-active')}
+                disabled={!lastActiveGaugeData}
+              >
+                Mode Terakhir Aktif
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${dataSourceMode === 'simulation' ? 'btn-warning' : 'btn-outline-warning'}`}
+                onClick={handleSimulationToggle}
+              >
+                Simulasi {dataSourceMode === 'simulation' ? 'ON' : 'OFF'}
+              </button>
             </div>
           </Col>
         </Row>
@@ -354,9 +522,10 @@ const Station1 = () => {
             </div>
           </Col>
         </Row>
+
         <Row className="mt-5 mb-3">
           <Col className="text-center">
-            {/* <ButtonGroup>
+            <ButtonGroup>
               <Button
                 variant={filter === '1d' ? 'primary' : 'outline-primary'}
                 onClick={() => setFilter('1d')}
@@ -375,7 +544,7 @@ const Station1 = () => {
               >
                 1 Bulan Terakhir
               </Button>
-            </ButtonGroup> */}
+            </ButtonGroup>
           </Col>
         </Row>
         <Row>
@@ -387,7 +556,7 @@ const Station1 = () => {
           <Col>
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', boxShadow: '0 0 15px rgba(0, 0, 0, 0.1)' }}>
                 <TrendChart
-                  data={allData}
+                  data={filteredData}
                   fields={[
                     { key: 'humidity', label: 'Humidity (%)' },
                     { key: 'temperature', label: 'Temperature (°C)' },

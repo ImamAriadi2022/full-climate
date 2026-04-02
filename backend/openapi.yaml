@@ -6,13 +6,16 @@ info:
     Dokumentasi API untuk kebutuhan frontend Back Climate.
 
     Ringkasan cepat:
-    - Semua endpoint topic4 menggunakan response yang konsisten: `{ result: SensorRecord[] }`.
+    - Semua endpoint station/topic menggunakan response yang konsisten: `{ result: SensorRecord[] }`.
     - Endpoint `.../topic4/latest` mengembalikan data terbaru (1 record).
+    - Endpoint `.../topic5/latest` mengembalikan data terbaru Station 2 (1 record).
     - Endpoint `.../topic4/history` mengembalikan history data terurut dengan pagination (`limit`/`offset`).
+    - Endpoint `.../station2/history` membaca langsung dari tabel `second_station`.
     - Jika request terlalu banyak, API mengembalikan 429.
 
     Mapping URL frontend (contoh):
-    - REACT_APP_API_PETENGORAN_GET_TOPIC4 -> /petengoran/topic4
+    - REACT_APP_API_PETENGORAN_GET_TOPIC4 -> /petengoran/topic4/history
+    - REACT_APP_API_PETENGORAN_GET_TOPIC5 -> /petengoran/topic5/history
     - REACT_APP_API_DASHBOARD_GET_TOPIC4 -> /dashboard/topic4
 
 servers:
@@ -141,6 +144,169 @@ paths:
                         AirPressure: 1009.8
                         windSpeed: 4.2
                         rainfall: 0
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/station1/history:
+    get:
+      tags: [Petengoran]
+      summary: Ambil history data Station 1 Petengoran
+      description: Endpoint utama Station 1 (setara data topic4) dengan pagination.
+      operationId: getPetengoranStation1History
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Berhasil mengambil history data Station 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/station1/latest:
+    get:
+      tags: [Petengoran]
+      summary: Ambil data terbaru Station 1 Petengoran
+      description: Endpoint utama Station 1 untuk 1 record terbaru.
+      operationId: getPetengoranStation1Latest
+      responses:
+        '200':
+          description: Berhasil mengambil data terbaru Station 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/station2/history:
+    get:
+      tags: [Petengoran]
+      summary: Ambil history data Station 2 Petengoran
+      description: Endpoint utama Station 2 (topic5) dengan pagination. Data diambil langsung dari tabel `second_station`.
+      operationId: getPetengoranStation2History
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Berhasil mengambil history data Station 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/station2/latest:
+    get:
+      tags: [Petengoran]
+      summary: Ambil data terbaru Station 2 Petengoran
+      description: Endpoint utama Station 2 untuk 1 record terbaru.
+      operationId: getPetengoranStation2Latest
+      responses:
+        '200':
+          description: Berhasil mengambil data terbaru Station 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/topic5:
+    get:
+      tags: [Petengoran]
+      summary: Legacy - Ambil history data topic5 Petengoran
+      deprecated: true
+      description: |
+        Alias kompatibilitas untuk Station 2.
+        Perilaku sama dengan `/petengoran/topic5/history`.
+      operationId: getPetengoranTopic5Legacy
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Berhasil mengambil history data topic5 Petengoran
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/topic5/history:
+    get:
+      tags: [Petengoran]
+      summary: Ambil seluruh history data topic5 Petengoran
+      description: Alias kompatibilitas untuk endpoint `/petengoran/station2/history`.
+      operationId: getPetengoranTopic5History
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Berhasil mengambil history data topic5 Petengoran
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /petengoran/topic5/latest:
+    get:
+      tags: [Petengoran]
+      summary: Ambil data terbaru topic5 Petengoran
+      description: Alias kompatibilitas untuk endpoint `/petengoran/station2/latest`.
+      operationId: getPetengoranTopic5Latest
+      responses:
+        '200':
+          description: Berhasil mengambil data terbaru topic5 Petengoran
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultWrapper'
         '429':
           $ref: '#/components/responses/TooManyRequestsError'
         '503':
