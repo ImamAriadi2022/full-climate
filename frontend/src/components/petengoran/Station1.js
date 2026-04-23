@@ -77,6 +77,19 @@ const formatUserFriendlyTimestamp = (timestamp) => {
 const isValidValue = (val) =>
   val !== null && val !== undefined && val !== 'error' && val !== 'alat rusak' && !isNaN(Number(val));
 
+const EMPTY_GAUGE_DATA = {
+  humidity: 0,
+  temperature: 0,
+  rainfall: 0,
+  windspeed: 0,
+  irradiation: 0,
+  windDirection: '',
+  angle: 0,
+  bmptemperature: 0,
+  airpressure: 0,
+  suhuair: 0,
+};
+
 const hasAllActiveSensorValue = (item) => {
   if (!item || item.timestamp === 'error' || item.timestamp === 'alat rusak') return false;
 
@@ -97,7 +110,7 @@ const parseCustomTimestamp = (ts) => {
   if (!ts || typeof ts !== 'string') return ts;
   const match = ts.match(/^(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
   if (!match) return ts;
-  const [_, dd, mm, yy, h, m, s] = match;
+  const [, dd, mm, yy, h, m, s] = match;
   // Asumsi tahun 20xx
   return `20${yy}-${mm}-${dd}T${h}:${m}:${s}`;
 };
@@ -199,31 +212,18 @@ function filterByRange(data, filter, startTimestamp, endTimestamp) {
 }
 
 const Station1 = () => {
-  const emptyGaugeData = {
-    humidity: 0,
-    temperature: 0,
-    rainfall: 0,
-    windspeed: 0,
-    irradiation: 0,
-    windDirection: '',
-    angle: 0,
-    bmptemperature: 0,
-    airpressure: 0,
-    suhuair: 0,
-  };
-
   const [filter, setFilter] = useState('1d');
   const [allData, setAllData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [tableData, setTableData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [error, setError] = useState(null);
   const [lastActiveTimestamp, setLastActiveTimestamp] = useState(null);
   const [gaugeMode, setGaugeMode] = useState('realtime');
   const [dataSourceMode, setDataSourceMode] = useState('realtime');
   const [lastActiveGaugeData, setLastActiveGaugeData] = useState(null);
-  const [realtimeGaugeData, setRealtimeGaugeData] = useState(emptyGaugeData);
-  const [gaugeData, setGaugeData] = useState(emptyGaugeData);
+  const [realtimeGaugeData, setRealtimeGaugeData] = useState(EMPTY_GAUGE_DATA);
+  const [gaugeData, setGaugeData] = useState(EMPTY_GAUGE_DATA);
   const [startDateTime, setStartDateTime] = useState('');
   const [endDateTime, setEndDateTime] = useState('');
   const latestRequestRef = useRef(0);
@@ -438,7 +438,7 @@ const Station1 = () => {
           suhuair: latestFullyActiveRealtime.suhuair,
         });
       } else {
-        setRealtimeGaugeData(emptyGaugeData);
+        setRealtimeGaugeData(EMPTY_GAUGE_DATA);
       }
   }, [allData, filter, startDateTime, endDateTime]);
 
