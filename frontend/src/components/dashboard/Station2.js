@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Table, ButtonGroup, Button } from 'react-bootstrap';
+import { useEffect, useRef, useState } from 'react';
+import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
+import { PETENGORAN_TOPIC5_URL } from '../../config/apiEndpoints';
 import TrendChart from "./chart";
 
 // Import komponen status environment (gauge)
-import TemperatureGauge from './status/TemperaturGauge';
 import HumidityGauge from './status/HumidityGauge';
-import RainfallGauge from './status/Rainfall';
-import WindSpeedGauge from './status/WindSpeed';
 import IrradiationGauge from './status/Irradiation';
+import RainfallGauge from './status/Rainfall';
+import TemperatureGauge from './status/TemperaturGauge';
 import WindDirectionGauge from './status/WindDirection';
+import WindSpeedGauge from './status/WindSpeed';
 
-const API_URL = process.env.REACT_APP_API_PETENGORAN_GET_TOPIC5;
+const API_URL = PETENGORAN_TOPIC5_URL;
 const LOCAL_STORAGE_KEY = "station2_data";
 
 // Mapping function mirip Station1 Sebesi

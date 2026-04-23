@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
+import {
+    KALIMANTAN_ONEDAY_TOPIC1_URL,
+    KALIMANTAN_ONEMONTH_TOPIC1_URL,
+    KALIMANTAN_SEVENDAYS_TOPIC1_URL,
+} from '../../config/apiEndpoints';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import HumidityGauge from './status/HumidityGauge';
 import IrradiationGauge from './status/Irradiation';
@@ -165,13 +170,13 @@ const Station1 = () => {
   const getApiUrl = (filterType) => {
     switch (filterType) {
       case '1d':
-        return process.env.REACT_APP_API_KALIMANTAN_ONEDAY_TOPIC1;
+        return KALIMANTAN_ONEDAY_TOPIC1_URL;
       case '7d':
-        return process.env.REACT_APP_API_KALIMANTAN_SEVENDAYS_TOPIC1;
+        return KALIMANTAN_SEVENDAYS_TOPIC1_URL;
       case '1m':
-        return process.env.REACT_APP_API_KALIMANTAN_ONEMONTH_TOPIC1;
+        return KALIMANTAN_ONEMONTH_TOPIC1_URL;
       default:
-        return process.env.REACT_APP_API_KALIMANTAN_ONEDAY_TOPIC1;
+        return KALIMANTAN_ONEDAY_TOPIC1_URL;
     }
   };
 

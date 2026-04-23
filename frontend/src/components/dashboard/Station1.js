@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
 
+import { PETENGORAN_TOPIC4_URL } from '../../config/apiEndpoints';
 import TrendChart from "./chart";
 
 // Komponen Gauge
@@ -24,7 +25,7 @@ const FIELD_CONFIG = [
 ];
 
 // API endpoint dari .env
-const API_URL = process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4;
+const API_URL = PETENGORAN_TOPIC4_URL;
 
 // Helper untuk mapping key dari API ke key frontend
 function mapApiData(apiItem) {

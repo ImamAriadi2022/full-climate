@@ -1,9 +1,10 @@
 import { saveAs } from 'file-saver';
 import { useEffect, useState } from 'react';
 import { Button, Col, Container, Form, Modal, Row } from 'react-bootstrap';
+import { KALIMANTAN_ONEMONTH_TOPIC1_URL } from '../../config/apiEndpoints';
 
 // API endpoint untuk Station 1
-const API_KALIMANTAN_TOPIC1 = process.env.REACT_APP_API_KALIMANTAN_ONEMONTH_TOPIC1;
+const API_KALIMANTAN_TOPIC1 = KALIMANTAN_ONEMONTH_TOPIC1_URL;
 
 // Helper: Wind direction mapping
 const windDirectionToEnglish = (dir) => {

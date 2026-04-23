@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, ButtonGroup, Col, Container, Form, Row, Table } from 'react-bootstrap';
+import {
+    PETENGORAN_DAILY_STATION2_URL,
+    PETENGORAN_RESAMPLE15M_STATION2_URL,
+} from '../../config/apiEndpoints';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import AirPressureGauge from './status/AirPressure';
 import HumidityGauge from './status/HumidityGauge';
@@ -214,13 +218,13 @@ const Station2 = () => {
   const getApiUrl = (filterType) => {
     switch (filterType) {
       case '1d':
-        return process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2;
+        return PETENGORAN_DAILY_STATION2_URL;
       case '7d':
-        return process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2; // Use daily for 7 days and filter client-side
+        return PETENGORAN_DAILY_STATION2_URL; // Use daily for 7 days and filter client-side
       case '1m':
-        return process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION2;
+        return PETENGORAN_RESAMPLE15M_STATION2_URL;
       default:
-        return process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2;
+        return PETENGORAN_DAILY_STATION2_URL;
     }
   };
 

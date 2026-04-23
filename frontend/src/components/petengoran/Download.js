@@ -1,17 +1,25 @@
 import { saveAs } from 'file-saver';
 import { useEffect, useState } from 'react';
 import { Button, Col, Container, Form, Modal, Row } from 'react-bootstrap';
+import {
+    PETENGORAN_DAILY_STATION1_URL,
+    PETENGORAN_DAILY_STATION2_URL,
+    PETENGORAN_RESAMPLE15M_STATION1_URL,
+    PETENGORAN_RESAMPLE15M_STATION2_URL,
+    PETENGORAN_TOPIC4_URL,
+    PETENGORAN_TOPIC5_URL,
+} from '../../config/apiEndpoints';
 
 // Endpoint mengikuti Station1.js dan Station2.js
 const API_STATION1 =
-  process.env.REACT_APP_API_PETENGORAN_DAILY_STATION1 ||
-  process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1 ||
-  process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4;
+  PETENGORAN_DAILY_STATION1_URL ||
+  PETENGORAN_RESAMPLE15M_STATION1_URL ||
+  PETENGORAN_TOPIC4_URL;
 
 const API_STATION2 =
-  process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2 ||
-  process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION2 ||
-  process.env.REACT_APP_API_PETENGORAN_GET_TOPIC5;
+  PETENGORAN_DAILY_STATION2_URL ||
+  PETENGORAN_RESAMPLE15M_STATION2_URL ||
+  PETENGORAN_TOPIC5_URL;
 
 // Fungsi parsing timestamp agar bisa dibandingkan dengan filter tanggal
 const parseTimestamp = (ts) => {

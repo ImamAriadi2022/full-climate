@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, ButtonGroup, Col, Container, Form, Row, Table } from 'react-bootstrap';
+import {
+  PETENGORAN_DAILY_STATION1_URL,
+  PETENGORAN_RESAMPLE15M_STATION1_URL,
+  PETENGORAN_TOPIC4_URL,
+} from '../../config/apiEndpoints';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import AirPressureGauge from './status/AirPressure';
 import HumidityGauge from './status/HumidityGauge';
@@ -229,9 +234,9 @@ const Station1 = () => {
   const latestRequestRef = useRef(0);
 
   const getApiUrl = (filterType) => {
-    const dailyUrl = process.env.REACT_APP_API_PETENGORAN_DAILY_STATION1;
-    const resampleUrl = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1;
-    const legacyUrl = process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4;
+    const dailyUrl = PETENGORAN_DAILY_STATION1_URL;
+    const resampleUrl = PETENGORAN_RESAMPLE15M_STATION1_URL;
+    const legacyUrl = PETENGORAN_TOPIC4_URL;
 
     if (filterType === '1m') return resampleUrl || dailyUrl || legacyUrl;
     return dailyUrl || resampleUrl || legacyUrl;

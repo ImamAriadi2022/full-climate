@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Slide } from 'react-awesome-reveal';
 import { Badge, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap';
+import { API_BASE_URL } from '../../config/apiEndpoints';
 
 const MONTH_NAMES = [
   'Januari',
@@ -31,34 +32,12 @@ const toDateKey = (date) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-const getApiBaseOrigin = () => {
-  const candidates = [
-    process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4,
-    process.env.REACT_APP_API_PETENGORAN_GET_TOPIC5,
-    process.env.REACT_APP_API_PETENGORAN_DAILY_STATION1,
-    process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2,
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      return new URL(candidate).origin;
-    } catch (_error) {
-      // Ignore malformed URLs and continue.
-    }
-  }
-
-  return '';
-};
-
 const buildActivityUrl = (station, from, to) => {
-  const origin = getApiBaseOrigin();
-  if (!origin) return '';
-
   const endpoint = station === 'station2'
     ? '/petengoran/station2/activity-calendar'
     : '/petengoran/station1/activity-calendar';
 
-  const parsed = new URL(`${origin}${endpoint}`);
+  const parsed = new URL(`${API_BASE_URL}${endpoint}`);
   parsed.searchParams.set('from', from);
   parsed.searchParams.set('to', to);
   return parsed.toString();
