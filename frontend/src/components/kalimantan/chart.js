@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { Button, ButtonGroup, Col, Modal, Row } from "react-bootstrap";
 import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Brush
+    CartesianGrid,
+    Legend,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
 } from "recharts";
 
 // Resampling function (mean fill, refer to Download.js)
@@ -24,13 +23,14 @@ export function resampleTimeSeriesWithMeanFill(data, intervalMinutes, fields) {
   let result = [];
   let current = new Date(start);
   while (current <= end) {
-    let next = new Date(current);
-    next.setMinutes(next.getMinutes() + intervalMinutes);
+    const slotStart = new Date(current);
+    const slotEnd = new Date(current);
+    slotEnd.setMinutes(slotEnd.getMinutes() + intervalMinutes);
     let slotData = data.filter(item => {
       let t = new Date(item.timestamp);
-      return t >= current && t < next;
+      return t >= slotStart && t < slotEnd;
     });
-    let resampled = { timestamp: current.toISOString() };
+    let resampled = { timestamp: slotStart.toISOString() };
     fields.forEach(field => {
       let mean;
       if (slotData.length === 0) {
@@ -44,7 +44,7 @@ export function resampleTimeSeriesWithMeanFill(data, intervalMinutes, fields) {
       resampled[field] = isNaN(variedMean) ? null : Number(variedMean.toFixed(2));
     });
     result.push(resampled);
-    current = next;
+    current = slotEnd;
   }
   return result;
 }
@@ -261,16 +261,6 @@ const TrendChart = ({ data, fields }) => {
                   stroke="#007bff"
                   strokeWidth={2}
                   dot={false}
-                />
-                <Brush
-                  dataKey="timestamp"
-                  height={25}
-                  stroke="#007bff"
-                  travellerWidth={8}
-                  tickFormatter={tick => {
-                    const d = new Date(tick);
-                    return `${d.getDate()}/${d.getMonth()+1}`;
-                  }}
                 />
               </LineChart>
             </ResponsiveContainer>

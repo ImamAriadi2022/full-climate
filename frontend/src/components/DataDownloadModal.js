@@ -54,7 +54,7 @@ const DataDownloadModal = ({
         )
       }));
     }
-  }, [data, fieldsToUse]);
+  }, [data, fieldsToUse, downloadOptions.fields.length]);
 
   // Filter data berdasarkan date range
   const filterDataByDateRange = (data, range) => {

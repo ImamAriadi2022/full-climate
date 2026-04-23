@@ -155,13 +155,14 @@ function resampleTimeSeriesWithMeanFill(data, intervalMinutes, fields) {
   let result = [];
   let current = new Date(start);
   while (current <= end) {
-    let next = new Date(current);
-    next.setMinutes(next.getMinutes() + intervalMinutes);
+    const slotStart = new Date(current);
+    const slotEnd = new Date(current);
+    slotEnd.setMinutes(slotEnd.getMinutes() + intervalMinutes);
     let slotData = data.filter(item => {
       let t = new Date(item.timestamp);
-      return t >= current && t < next;
+      return t >= slotStart && t < slotEnd;
     });
-    let resampled = { timestamp: current.toISOString(), userFriendlyDate: formatUserFriendlyDate(current.toISOString()) };
+    let resampled = { timestamp: slotStart.toISOString(), userFriendlyDate: formatUserFriendlyDate(slotStart.toISOString()) };
     fields.forEach(field => {
       if (slotData.length === 0) {
         const mean = data.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0) / data.length;
@@ -186,7 +187,7 @@ function resampleTimeSeriesWithMeanFill(data, intervalMinutes, fields) {
       }
     }
     result.push(resampled);
-    current = next;
+    current = slotEnd;
   }
   return result;
 }
@@ -199,7 +200,6 @@ const Download = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [station1Data, setStation1Data] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [dataReady, setDataReady] = useState(false);
 
   // Resampling state

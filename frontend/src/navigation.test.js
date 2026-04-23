@@ -1,6 +1,7 @@
 require('dotenv').config();
+const assert = require('node:assert/strict');
+const { before, after, describe, it } = require('mocha');
 const { By, until } = require('selenium-webdriver');
-const { expect } = require('chai');
 const getDriver = require('../utils/webdriver');
 
 describe('Navigasi di Web IoT - Kalimantan Station 1', function () {
@@ -53,7 +54,7 @@ describe('Navigasi di Web IoT - Kalimantan Station 1', function () {
     await driver.wait(until.urlIs(stationUrl), 15000, `URL tidak kembali ke ${stationUrl} setelah klik logo.`); // Increased timeout
     const currentUrl = await driver.getCurrentUrl();
     console.log(`[Navigation Test] Current URL after click: ${currentUrl}`);
-    expect(currentUrl).to.equal(stationUrl);
+    assert.strictEqual(currentUrl, stationUrl);
 
     console.log("[Navigation Test] Verifying title after logo click...");
     const title = await driver.wait(
@@ -61,7 +62,7 @@ describe('Navigasi di Web IoT - Kalimantan Station 1', function () {
       15000, // Increased timeout
       "Judul Dashboard 'Environment Status Station 1' tidak ditemukan setelah klik logo"
     );
-    expect(await title.getText()).to.include('Environment Status Station 1');
+    assert.ok((await title.getText()).includes('Environment Status Station 1'));
     console.log("[Navigation Test] Test: Klik logo atau judul kembali ke dashboard utama station 1 - END");
   });
 
@@ -86,14 +87,14 @@ describe('Navigasi di Web IoT - Kalimantan Station 1', function () {
       10000,
       "Judul halaman download tidak ditemukan"
     );
-    expect((await downloadPageTitle.getText()).toLowerCase()).to.include('download data');
+    assert.ok((await downloadPageTitle.getText()).toLowerCase().includes('download data'));
 
     const downloadBtn = await driver.wait(
       until.elementLocated(By.xpath("//button[normalize-space(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'))='download data']")),
       10000,
       "Tombol 'Download Data' di halaman Download tidak ditemukan"
     );
-    expect((await downloadBtn.getText()).toLowerCase()).to.include('download data');
+    assert.ok((await downloadBtn.getText()).toLowerCase().includes('download data'));
     console.log("[Navigation Test] Test: Navigasi ke halaman Download melalui sidebar - END");
   });
 });

@@ -106,15 +106,6 @@ const TrendChart = ({ data, filter = '1d' }) => {
     return [min, max];
   };
 
-  // Domain Y: 10% lebih tinggi dari nilai max
-  const getYAxisDomain = (data, metric) => {
-    const values = data.map((d) => d[metric]).filter((v) => typeof v === "number" && !isNaN(v));
-    if (!values.length) return ["auto", "auto"];
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    return [Math.floor(min - 0.1 * Math.abs(min)), Math.ceil(max + 0.1 * Math.abs(max))];
-  };
-
   return (
     <>
       <Row>

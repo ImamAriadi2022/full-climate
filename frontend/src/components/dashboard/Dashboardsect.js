@@ -70,18 +70,18 @@ const DashboardSect = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const now = new Date();
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth());
   const [selectedDateKey, setSelectedDateKey] = useState('');
 
   const yearOptions = useMemo(() => {
     const years = [];
-    for (let year = now.getFullYear(); year >= 2023; year -= 1) {
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear; year >= 2023; year -= 1) {
       years.push(year);
     }
     return years;
-  }, [now]);
+  }, []);
 
   useEffect(() => {
     const fetchActivity = async () => {
@@ -137,7 +137,7 @@ const DashboardSect = () => {
     fetchActivity();
   }, []);
 
-  const activeDateMap = activityMap[selectedStation] || {};
+  const activeDateMap = useMemo(() => activityMap[selectedStation] || {}, [activityMap, selectedStation]);
 
   const calendarCells = useMemo(() => {
     const firstDay = new Date(selectedYear, selectedMonth, 1);

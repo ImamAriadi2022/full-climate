@@ -88,6 +88,23 @@ const toNumberOrZero = (value) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const parseApiRows = (payload) => {
+  if (Array.isArray(payload?.result)) return payload.result;
+  if (Array.isArray(payload?.data?.result)) return payload.data.result;
+  if (Array.isArray(payload)) return payload;
+  return [];
+};
+
+const fetchMappedData = async (url, mapper) => {
+  if (!url) return [];
+
+  const response = await fetch(url);
+  if (!response.ok) return [];
+
+  const json = await response.json();
+  return parseApiRows(json).map(mapper);
+};
+
 // Mapping untuk Station 1
 const mapStation1 = (item) => {
   if (!item) return {};
@@ -193,13 +210,11 @@ const Download = () => {
   const [station1Data, setStation1Data] = useState([]);
   const [station2Data, setStation2Data] = useState([]);
   const [dataSourceMode, setDataSourceMode] = useState('realtime');
-  const [loading, setLoading] = useState(false);
   const [dataReady, setDataReady] = useState(false);
 
   // Hanya fitur resampling
   const [enableResampling, setEnableResampling] = useState(false);
   const [resampleInterval, setResampleInterval] = useState(15);
-  const [resampleMethod, setResampleMethod] = useState('mean');
 
   const getSimulationApiUrl = (primaryUrl, stationType = 'station1') => {
     if (!primaryUrl) return null;
@@ -211,13 +226,6 @@ const Download = () => {
     } catch (_error) {
       return null;
     }
-  };
-
-  const parseApiRows = (payload) => {
-    if (Array.isArray(payload?.result)) return payload.result;
-    if (Array.isArray(payload?.data?.result)) return payload.data.result;
-    if (Array.isArray(payload)) return payload;
-    return [];
   };
 
   const appendAtTimeParam = (url, atTimeValue) => {
@@ -232,21 +240,10 @@ const Download = () => {
     }
   };
 
-  const fetchMappedData = async (url, mapper) => {
-    if (!url) return [];
-
-    const response = await fetch(url);
-    if (!response.ok) return [];
-
-    const json = await response.json();
-    return parseApiRows(json).map(mapper);
-  };
-
   // Fetch data dari API saat komponen mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
         setDataReady(false);
 
         const station1Url = dataSourceMode === 'simulation'
@@ -269,8 +266,6 @@ const Download = () => {
         setStation1Data([]);
         setStation2Data([]);
         setDataReady(false);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();
@@ -373,13 +368,14 @@ const Download = () => {
     let result = [];
     let current = new Date(start);
     while (current <= end) {
-      let next = new Date(current);
-      next.setMinutes(next.getMinutes() + intervalMinutes);
+      const slotStart = new Date(current);
+      const slotEnd = new Date(current);
+      slotEnd.setMinutes(slotEnd.getMinutes() + intervalMinutes);
       let slotData = data.filter(item => {
         let t = new Date(item.timestamp);
-        return t >= current && t < next;
+        return t >= slotStart && t < slotEnd;
       });
-      let resampled = { timestamp: current.toISOString(), userFriendlyDate: formatUserFriendlyDate(current.toISOString()) };
+      let resampled = { timestamp: slotStart.toISOString(), userFriendlyDate: formatUserFriendlyDate(slotStart.toISOString()) };
       fields.forEach(field => {
         if (slotData.length === 0) {
           const mean = data.reduce((sum, item) => sum + (parseFloat(item[field]) || 0), 0) / data.length;
@@ -390,7 +386,7 @@ const Download = () => {
         }
       });
       result.push(resampled);
-      current = next;
+      current = slotEnd;
     }
     return result;
   }
@@ -579,7 +575,7 @@ const Download = () => {
                 Petengoran {selectedStation}: {getStationData().length} records
                 <br />
                 {enableResampling && (
-                  <><strong>Resampling:</strong> {resampleInterval} menit ({resampleMethod})<br /></>
+                  <><strong>Resampling:</strong> {resampleInterval} menit (mean)<br /></>
                 )}
               </small>
             </div>

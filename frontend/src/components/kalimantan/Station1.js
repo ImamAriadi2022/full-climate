@@ -149,9 +149,7 @@ function filterByRange(data, filter) {
 const Station1 = () => {
   const [filter, setFilter] = useState('1d');
   const [allData, setAllData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [tableData, setTableData] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [gaugeData, setGaugeData] = useState({
     humidity: 0,
@@ -211,8 +209,6 @@ const Station1 = () => {
 
   useEffect(() => {
     const filtered = filterByRange(allData, filter);
-    setFilteredData(filtered);
-
     const fields = [
       'humidity', 'temperature', 'rainfall', 'windspeed', 'irradiation', 'angle'
     ];
@@ -431,7 +427,7 @@ const Station1 = () => {
                 </Table>
               ) : (
                 <p className="text-center" style={{ color: '#007bff' }}>
-                  {loading ? 'Loading data...' : 'No data available for the selected filter'}
+                  No data available for the selected filter
                 </p>
               )}
             </div>

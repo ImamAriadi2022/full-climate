@@ -1,7 +1,5 @@
-import React from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
 import { Slide } from 'react-awesome-reveal';
+import { Col, Container, Row } from 'react-bootstrap';
 
 const Hero = () => {
   return (

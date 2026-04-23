@@ -61,7 +61,6 @@ const Station1 = () => {
   const [filter, setFilter] = useState('1d');
   const [allData, setAllData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   // Load data dari localStorage saat pertama kali mount
   useEffect(() => {
@@ -264,7 +263,14 @@ const Station1 = () => {
           <Col md={12}>
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', boxShadow: '0 0 15px rgba(0, 0, 0, 0.1)' }}>
               <h4 style={{ color: '#007bff' }}>Location</h4>
-              <iframe src="https://www.google.com/maps/embed?pb=!4v1742927582633!6m8!1m7!1semWwMLjxPNBvkFSf0-d_fQ!2m2!1d-5.570831564383814!2d105.240617222604!3f101.32!4f28.680000000000007!5f0.42518105702959824" style={{ width: '100%', height: '300px', border: 0 }} allowFullScreen="" loading="lazy" referrerPolicy="no-referrer-when-downgrade"></iframe>
+              <iframe
+                title="Location map of Station 1"
+                src="https://www.google.com/maps/embed?pb=!4v1742927582633!6m8!1m7!1semWwMLjxPNBvkFSf0-d_fQ!2m2!1d-5.570831564383814!2d105.240617222604!3f101.32!4f28.680000000000007!5f0.42518105702959824"
+                style={{ width: '100%', height: '300px', border: 0 }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
           </Col>
           {/* ini buat maps */}
