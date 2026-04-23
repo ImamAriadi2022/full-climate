@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
+import { Button, ButtonGroup, Col, Container, Form, Row, Table } from 'react-bootstrap';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import AirPressureGauge from './status/AirPressure';
 import HumidityGauge from './status/HumidityGauge';
@@ -148,9 +148,25 @@ const mapApiData = (item) => {
 };
 
 
-function filterByRange(data, filter) {
+function filterByRange(data, filter, startTimestamp, endTimestamp) {
   if (!Array.isArray(data) || data.length === 0) return [];
-  const now = new Date(); // gunakan waktu sekarang
+
+  const startDate = startTimestamp ? new Date(startTimestamp) : null;
+  const endDate = endTimestamp ? new Date(endTimestamp) : null;
+  const hasStart = startDate && !Number.isNaN(startDate.getTime());
+  const hasEnd = endDate && !Number.isNaN(endDate.getTime());
+
+  if (hasStart || hasEnd) {
+    return data.filter((d) => {
+      const t = new Date(d.timestamp);
+      if (Number.isNaN(t.getTime())) return false;
+      if (hasStart && t < startDate) return false;
+      if (hasEnd && t > endDate) return false;
+      return true;
+    });
+  }
+
+  const now = new Date();
   let minDate;
   if (filter === '1d') minDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   else if (filter === '7d') minDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -190,6 +206,8 @@ const Station2 = () => {
   const [lastActiveGaugeData, setLastActiveGaugeData] = useState(null);
   const [realtimeGaugeData, setRealtimeGaugeData] = useState(emptyGaugeData);
   const [gaugeData, setGaugeData] = useState(emptyGaugeData);
+  const [startDateTime, setStartDateTime] = useState('');
+  const [endDateTime, setEndDateTime] = useState('');
   const latestRequestRef = useRef(0);
 
   // Get API URL based on filter
@@ -213,10 +231,16 @@ const Station2 = () => {
     return 500;
   };
 
-  const buildPagedUrl = (baseUrl, limit, offset) => {
+  const buildPagedUrl = (baseUrl, limit, offset, startTime = null, endTime = null) => {
     const parsed = new URL(baseUrl);
     parsed.searchParams.set('limit', String(limit));
     parsed.searchParams.set('offset', String(offset));
+    if (startTime) {
+      parsed.searchParams.set('startTime', startTime);
+    }
+    if (endTime) {
+      parsed.searchParams.set('endTime', endTime);
+    }
     return parsed.toString();
   };
 
@@ -253,7 +277,7 @@ const Station2 = () => {
     return response.json();
   };
 
-  const fetchPagedResult = async (baseUrl, sourceMode, filterType) => {
+  const fetchPagedResult = async (baseUrl, sourceMode, filterType, startTime = null, endTime = null) => {
     const pageLimit = sourceMode === 'simulation' ? 200 : 500;
     const targetCount = getTargetRecordCount(filterType);
     const maxPages = sourceMode === 'simulation' ? 8 : 12;
@@ -261,7 +285,7 @@ const Station2 = () => {
 
     for (let page = 0; page < maxPages && rows.length < targetCount; page += 1) {
       const offset = page * pageLimit;
-      const pagedUrl = buildPagedUrl(baseUrl, pageLimit, offset);
+      const pagedUrl = buildPagedUrl(baseUrl, pageLimit, offset, startTime, endTime);
       const pageData = await fetchJsonOrThrow(pagedUrl);
 
       const chunk = Array.isArray(pageData?.result)
@@ -282,7 +306,12 @@ const Station2 = () => {
   };
 
   // Fetch data dari API berdasarkan filter
-  const fetchData = async (sourceMode = 'realtime', filterType = filter) => {
+  const fetchData = async (
+    sourceMode = 'realtime',
+    filterType = filter,
+    selectedStartTime = startDateTime,
+    selectedEndTime = endDateTime
+  ) => {
     const requestId = latestRequestRef.current + 1;
     latestRequestRef.current = requestId;
 
@@ -291,13 +320,27 @@ const Station2 = () => {
     try {
       const url = sourceMode === 'simulation' ? getSimulationApiUrl() : getApiUrl(filterType);
       if (!url) throw new Error(`No API URL configured for filter: ${filterType}`);
-      const rawRows = await fetchPagedResult(url, sourceMode, filterType);
+      const startTime = sourceMode === 'realtime' && selectedStartTime
+        ? new Date(selectedStartTime).toISOString()
+        : null;
+      const endTime = sourceMode === 'realtime' && selectedEndTime
+        ? new Date(selectedEndTime).toISOString()
+        : null;
+      const rawRows = await fetchPagedResult(url, sourceMode, filterType, startTime, endTime);
 
       if (requestId !== latestRequestRef.current) {
         return;
       }
 
-      const mapped = rawRows.map(mapApiData);
+      const mapped = rawRows
+        .map(mapApiData)
+        .filter((row) => {
+          const rowTime = new Date(row.timestamp);
+          if (Number.isNaN(rowTime.getTime())) return false;
+          if (startTime && rowTime < new Date(startTime)) return false;
+          if (endTime && rowTime > new Date(endTime)) return false;
+          return true;
+        });
 
       const latestActive = mapped.find(hasAllActiveSensorValue);
       setLastActiveTimestamp(latestActive ? latestActive.timestamp : null);
@@ -328,23 +371,23 @@ const Station2 = () => {
   };
 
   useEffect(() => {
-    fetchData(dataSourceMode, filter);
+    fetchData(dataSourceMode, filter, startDateTime, endDateTime);
     // eslint-disable-next-line
-  }, [filter]);
+  }, [filter, startDateTime, endDateTime]);
 
   const handleSimulationToggle = () => {
     if (dataSourceMode === 'simulation') {
-      fetchData('realtime', filter);
+      fetchData('realtime', filter, startDateTime, endDateTime);
       return;
     }
 
-    fetchData('simulation', filter);
+    fetchData('simulation', filter, startDateTime, endDateTime);
   };
 
 
   useEffect(() => {
     // Filter data sesuai range
-    const filtered = filterByRange(allData, filter);
+    const filtered = filterByRange(allData, filter, startDateTime, endDateTime);
     setFilteredData(filtered);
     const fields = [
       'humidity',
@@ -380,7 +423,7 @@ const Station2 = () => {
     } else {
       setRealtimeGaugeData(emptyGaugeData);
     }
-  }, [allData, filter]);
+  }, [allData, filter, startDateTime, endDateTime]);
 
   useEffect(() => {
     if (gaugeMode === 'last-active' && lastActiveGaugeData) {
@@ -520,6 +563,35 @@ const Station2 = () => {
         </Row>
         <Row className="mt-5 mb-3">
           <Col className="text-center">
+            <div className="d-flex flex-column align-items-center gap-2 mb-3">
+              <Form.Label className="mb-0 fw-semibold">Pilih Rentang Waktu (opsional)</Form.Label>
+              <div className="d-flex gap-2 flex-wrap justify-content-center">
+                <Form.Control
+                  type="datetime-local"
+                  style={{ maxWidth: '280px' }}
+                  value={startDateTime}
+                  onChange={(e) => setStartDateTime(e.target.value)}
+                  placeholder="Mulai"
+                />
+                <Form.Control
+                  type="datetime-local"
+                  style={{ maxWidth: '280px' }}
+                  value={endDateTime}
+                  onChange={(e) => setEndDateTime(e.target.value)}
+                  placeholder="Selesai"
+                />
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => {
+                    setStartDateTime('');
+                    setEndDateTime('');
+                  }}
+                  disabled={!startDateTime && !endDateTime}
+                >
+                  Reset Rentang
+                </Button>
+              </div>
+            </div>
             <ButtonGroup>
               <Button
                 variant={filter === '1d' ? 'primary' : 'outline-primary'}

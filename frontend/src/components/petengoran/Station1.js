@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, ButtonGroup, Col, Container, Row, Table } from 'react-bootstrap';
+import { Button, ButtonGroup, Col, Container, Form, Row, Table } from 'react-bootstrap';
 import TrendChart, { resampleTimeSeriesWithMeanFill } from "./chart";
 import AirPressureGauge from './status/AirPressure';
 import HumidityGauge from './status/HumidityGauge';
@@ -80,19 +80,15 @@ const isValidValue = (val) =>
 const hasAllActiveSensorValue = (item) => {
   if (!item || item.timestamp === 'error' || item.timestamp === 'alat rusak') return false;
 
-  const keys = [
+  const requiredKeys = [
     'humidity',
     'temperature',
     'rainfall',
     'windspeed',
-    'irradiation',
-    'angle',
-    'bmptemperature',
-    'airpressure',
-    'suhuair',
   ];
 
-  return keys.every((key) => typeof item[key] === 'number' && !isNaN(item[key]));
+  // Jangan terlalu ketat: beberapa station bisa tidak memiliki semua sensor opsional.
+  return requiredKeys.every((key) => typeof item[key] === 'number' && !isNaN(item[key]));
 };
 
 
@@ -141,25 +137,52 @@ const mapApiData = (item) => {
     };
   }
   ts = parseCustomTimestamp(ts); // <-- parsing timestamp agar valid untuk JS Date
+
+  const humidityRaw = item.humidity ?? item.hum_dht22;
+  const temperatureRaw = item.temperature ?? item.temp_dht22;
+  const rainfallRaw = item.rainfall;
+  const windSpeedRaw = item.windSpeed ?? item.windspeed ?? item.wind_speed;
+  const irradiationRaw = item.irradiation ?? item.pyrano;
+  const angleRaw = item.angle ?? item.Angle;
+  const bmpTemperatureRaw = item.bmpTemperature ?? item.bmptemperature ?? item.bmp_temperature;
+  const airPressureRaw = item.AirPressure ?? item.airPressure ?? item.airpressure;
+  const suhuAirRaw = item.suhuAir ?? item.suhuair ?? item.waterTemperature ?? item.water_temperature;
+
   return {
     timestamp: ts,
-    humidity: isValidValue(item.humidity) ? Number(item.humidity) : 'alat rusak',
-    temperature: isValidValue(item.temperature) ? Number(item.temperature) : 'alat rusak',
-    rainfall: isValidValue(item.rainfall) ? Number(item.rainfall) : 'alat rusak',
-    windspeed: isValidValue(item.windSpeed ?? item.windspeed) ? Number(item.windSpeed ?? item.windspeed) : 'alat rusak',
-    irradiation: isValidValue(item.irradiation) ? Number(item.irradiation) : 'alat rusak',
-    windDirection: windDirectionToEnglish(item.direction ?? ''),
-    angle: isValidValue(item.angle) ? Number(item.angle) : 'alat rusak',
-    bmptemperature: isValidValue(item.bmpTemperature ?? item.bmptemperature) ? Number(item.bmpTemperature ?? item.bmptemperature) : 'alat rusak',
-    airpressure: isValidValue(item.AirPressure ?? item.airpressure) ? Number(item.AirPressure ?? item.airpressure) : 'alat rusak',
-    suhuair: isValidValue(item.suhuAir ?? item.suhuair) ? Number(item.suhuAir ?? item.suhuair) : 'alat rusak',
+    humidity: isValidValue(humidityRaw) ? Number(humidityRaw) : 'alat rusak',
+    temperature: isValidValue(temperatureRaw) ? Number(temperatureRaw) : 'alat rusak',
+    rainfall: isValidValue(rainfallRaw) ? Number(rainfallRaw) : 'alat rusak',
+    windspeed: isValidValue(windSpeedRaw) ? Number(windSpeedRaw) : 'alat rusak',
+    irradiation: isValidValue(irradiationRaw) ? Number(irradiationRaw) : 'alat rusak',
+    windDirection: windDirectionToEnglish(item.direction ?? item.windDirection ?? ''),
+    angle: isValidValue(angleRaw) ? Number(angleRaw) : 'alat rusak',
+    bmptemperature: isValidValue(bmpTemperatureRaw) ? Number(bmpTemperatureRaw) : 'alat rusak',
+    airpressure: isValidValue(airPressureRaw) ? Number(airPressureRaw) : 'alat rusak',
+    suhuair: isValidValue(suhuAirRaw) ? Number(suhuAirRaw) : 'alat rusak',
   };
 };
 
 
 
-function filterByRange(data, filter) {
+function filterByRange(data, filter, startTimestamp, endTimestamp) {
   if (!Array.isArray(data) || data.length === 0) return [];
+
+  const startDate = startTimestamp ? new Date(startTimestamp) : null;
+  const endDate = endTimestamp ? new Date(endTimestamp) : null;
+  const hasStart = startDate && !Number.isNaN(startDate.getTime());
+  const hasEnd = endDate && !Number.isNaN(endDate.getTime());
+
+  if (hasStart || hasEnd) {
+    return data.filter((d) => {
+      const t = new Date(d.timestamp);
+      if (Number.isNaN(t.getTime())) return false;
+      if (hasStart && t < startDate) return false;
+      if (hasEnd && t > endDate) return false;
+      return true;
+    });
+  }
+
   const now = new Date();
   let minDate;
   if (filter === '1d') minDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -201,9 +224,19 @@ const Station1 = () => {
   const [lastActiveGaugeData, setLastActiveGaugeData] = useState(null);
   const [realtimeGaugeData, setRealtimeGaugeData] = useState(emptyGaugeData);
   const [gaugeData, setGaugeData] = useState(emptyGaugeData);
+  const [startDateTime, setStartDateTime] = useState('');
+  const [endDateTime, setEndDateTime] = useState('');
   const latestRequestRef = useRef(0);
 
-  const API_URL = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1;
+  const getApiUrl = (filterType) => {
+    const dailyUrl = process.env.REACT_APP_API_PETENGORAN_DAILY_STATION1;
+    const resampleUrl = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1;
+    const legacyUrl = process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4;
+
+    if (filterType === '1m') return resampleUrl || dailyUrl || legacyUrl;
+    return dailyUrl || resampleUrl || legacyUrl;
+  };
+
   const getTargetRecordCount = (filterType) => {
     if (filterType === '1d') return 200;
     if (filterType === '7d') return 1200;
@@ -211,10 +244,16 @@ const Station1 = () => {
     return 500;
   };
 
-  const buildPagedUrl = (baseUrl, limit, offset) => {
+  const buildPagedUrl = (baseUrl, limit, offset, startTime = null, endTime = null) => {
     const parsed = new URL(baseUrl);
     parsed.searchParams.set('limit', String(limit));
     parsed.searchParams.set('offset', String(offset));
+    if (startTime) {
+      parsed.searchParams.set('startTime', startTime);
+    }
+    if (endTime) {
+      parsed.searchParams.set('endTime', endTime);
+    }
     return parsed.toString();
   };
 
@@ -252,7 +291,7 @@ const Station1 = () => {
     return response.json();
   };
 
-  const fetchPagedResult = async (baseUrl, sourceMode, filterType) => {
+  const fetchPagedResult = async (baseUrl, sourceMode, filterType, startTime = null, endTime = null) => {
     const pageLimit = sourceMode === 'simulation' ? 200 : 500;
     const targetCount = getTargetRecordCount(filterType);
     const maxPages = sourceMode === 'simulation' ? 8 : 12;
@@ -260,7 +299,7 @@ const Station1 = () => {
 
     for (let page = 0; page < maxPages && rows.length < targetCount; page += 1) {
       const offset = page * pageLimit;
-      const pagedUrl = buildPagedUrl(baseUrl, pageLimit, offset);
+      const pagedUrl = buildPagedUrl(baseUrl, pageLimit, offset, startTime, endTime);
       const pageData = await fetchJsonOrThrow(pagedUrl);
 
       const chunk = Array.isArray(pageData?.result)
@@ -281,17 +320,29 @@ const Station1 = () => {
   };
 
 
-  const fetchData = async (sourceMode = 'realtime', filterType = filter) => {
+  const fetchData = async (
+    sourceMode = 'realtime',
+    filterType = filter,
+    selectedStartTime = startDateTime,
+    selectedEndTime = endDateTime
+  ) => {
     const requestId = latestRequestRef.current + 1;
     latestRequestRef.current = requestId;
 
     // Hapus setLoading(true) agar tidak ada loading indicator visual
     setError(null);
     try {
+      const realtimeUrl = getApiUrl(filterType);
       const url =
-        sourceMode === 'simulation' ? getSimulationApiUrl(API_URL) : API_URL;
+        sourceMode === 'simulation' ? getSimulationApiUrl(realtimeUrl) : realtimeUrl;
       if (!url) throw new Error(`No API URL configured`);
-      const rawRows = await fetchPagedResult(url, sourceMode, filterType);
+      const startTime = sourceMode === 'realtime' && selectedStartTime
+        ? new Date(selectedStartTime).toISOString()
+        : null;
+      const endTime = sourceMode === 'realtime' && selectedEndTime
+        ? new Date(selectedEndTime).toISOString()
+        : null;
+      const rawRows = await fetchPagedResult(url, sourceMode, filterType, startTime, endTime);
 
       if (requestId !== latestRequestRef.current) {
         return;
@@ -300,9 +351,18 @@ const Station1 = () => {
       // Urutkan data dari yang terbaru
       const result = rawRows
         .map(mapApiData)
+        .filter((row) => {
+          const rowTime = new Date(row.timestamp);
+          if (Number.isNaN(rowTime.getTime())) return false;
+          if (startTime && rowTime < new Date(startTime)) return false;
+          if (endTime && rowTime > new Date(endTime)) return false;
+          return true;
+        })
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // terbaru di atas
 
-      const latestActive = result.find(hasAllActiveSensorValue);
+      const latestActive =
+        result.find(hasAllActiveSensorValue) ||
+        result.find((row) => row && row.timestamp && row.timestamp !== 'error' && row.timestamp !== 'alat rusak');
       setLastActiveTimestamp(latestActive ? latestActive.timestamp : null);
       setLastActiveGaugeData(latestActive ? latestActive : null);
       setDataSourceMode(sourceMode);
@@ -330,21 +390,21 @@ const Station1 = () => {
   }, []);
 
   useEffect(() => {
-    fetchData(dataSourceMode, filter);
+    fetchData(dataSourceMode, filter, startDateTime, endDateTime);
     // eslint-disable-next-line
-  }, [filter]);
+  }, [filter, startDateTime, endDateTime]);
 
   const handleSimulationToggle = () => {
     if (dataSourceMode === 'simulation') {
-      fetchData('realtime', filter);
+      fetchData('realtime', filter, startDateTime, endDateTime);
       return;
     }
 
-    fetchData('simulation', filter);
+    fetchData('simulation', filter, startDateTime, endDateTime);
   };
 
     useEffect(() => {
-      const filtered = filterByRange(allData, filter);
+      const filtered = filterByRange(allData, filter, startDateTime, endDateTime);
       setFilteredData(filtered);
   
       // Konsistenkan data tabel per 15 menit
@@ -361,7 +421,9 @@ const Station1 = () => {
       setTableData(last10);
   
       // Mode realtime hanya pakai data yang semua sensornya valid (alat aktif penuh)
-      const latestFullyActiveRealtime = last10.find(hasAllActiveSensorValue);
+      const latestFullyActiveRealtime =
+        last10.find(hasAllActiveSensorValue) ||
+        last10.find((row) => row && row.timestamp && row.timestamp !== 'error' && row.timestamp !== 'alat rusak');
       if (latestFullyActiveRealtime) {
         setRealtimeGaugeData({
           humidity: latestFullyActiveRealtime.humidity,
@@ -378,7 +440,7 @@ const Station1 = () => {
       } else {
         setRealtimeGaugeData(emptyGaugeData);
       }
-  }, [allData, filter]);
+  }, [allData, filter, startDateTime, endDateTime]);
 
   useEffect(() => {
     if (gaugeMode === 'last-active' && lastActiveGaugeData) {
@@ -525,6 +587,35 @@ const Station1 = () => {
 
         <Row className="mt-5 mb-3">
           <Col className="text-center">
+            <div className="d-flex flex-column align-items-center gap-2 mb-3">
+              <Form.Label className="mb-0 fw-semibold">Pilih Rentang Waktu (opsional)</Form.Label>
+              <div className="d-flex gap-2 flex-wrap justify-content-center">
+                <Form.Control
+                  type="datetime-local"
+                  style={{ maxWidth: '280px' }}
+                  value={startDateTime}
+                  onChange={(e) => setStartDateTime(e.target.value)}
+                  placeholder="Mulai"
+                />
+                <Form.Control
+                  type="datetime-local"
+                  style={{ maxWidth: '280px' }}
+                  value={endDateTime}
+                  onChange={(e) => setEndDateTime(e.target.value)}
+                  placeholder="Selesai"
+                />
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => {
+                    setStartDateTime('');
+                    setEndDateTime('');
+                  }}
+                  disabled={!startDateTime && !endDateTime}
+                >
+                  Reset Rentang
+                </Button>
+              </div>
+            </div>
             <ButtonGroup>
               <Button
                 variant={filter === '1d' ? 'primary' : 'outline-primary'}

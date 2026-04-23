@@ -3,8 +3,15 @@ import { useEffect, useState } from 'react';
 import { Button, Col, Container, Form, Modal, Row } from 'react-bootstrap';
 
 // Endpoint mengikuti Station1.js dan Station2.js
-const API_STATION1 = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1;
-const API_STATION2 = process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION2;
+const API_STATION1 =
+  process.env.REACT_APP_API_PETENGORAN_DAILY_STATION1 ||
+  process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION1 ||
+  process.env.REACT_APP_API_PETENGORAN_GET_TOPIC4;
+
+const API_STATION2 =
+  process.env.REACT_APP_API_PETENGORAN_DAILY_STATION2 ||
+  process.env.REACT_APP_API_PETENGORAN_RESAMPLE15M_STATION2 ||
+  process.env.REACT_APP_API_PETENGORAN_GET_TOPIC5;
 
 // Fungsi parsing timestamp agar bisa dibandingkan dengan filter tanggal
 const parseTimestamp = (ts) => {
@@ -76,6 +83,11 @@ const windDirectionToEnglish = (dir) => {
   return map[dir] || dir;
 };
 
+const toNumberOrZero = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
 // Mapping untuk Station 1
 const mapStation1 = (item) => {
   if (!item) return {};
@@ -87,16 +99,16 @@ const mapStation1 = (item) => {
   return {
     timestamp: parsedTs,
     userFriendlyDate: formatUserFriendlyDate(parsedTs),
-    humidity: item.humidity ?? item.hum_dht22 ?? 0,
-    temperature: item.temperature ?? item.temp_dht22 ?? 0,
-    rainfall: item.rainfall ?? 0,
-    windspeed: item.windspeed ?? item.wind_speed ?? 0,
-    irradiation: item.irradiation ?? 0,
+    humidity: toNumberOrZero(item.humidity ?? item.hum_dht22),
+    temperature: toNumberOrZero(item.temperature ?? item.temp_dht22),
+    rainfall: toNumberOrZero(item.rainfall),
+    windspeed: toNumberOrZero(item.windSpeed ?? item.windspeed ?? item.wind_speed),
+    irradiation: toNumberOrZero(item.irradiation ?? item.pyrano),
     windDirection: windDirectionToEnglish(item.direction ?? ''),
-    angle: item.angle ?? 0,
-    bmptemperature: item.bmptemperature ?? 0,
-    airpressure: item.airpressure ?? 0,
-    suhuair: item.suhuair ?? 0,
+    angle: toNumberOrZero(item.angle),
+    bmptemperature: toNumberOrZero(item.bmpTemperature ?? item.bmptemperature ?? item.bmp_temperature),
+    airpressure: toNumberOrZero(item.AirPressure ?? item.airPressure ?? item.airpressure),
+    suhuair: toNumberOrZero(item.suhuAir ?? item.suhuair ?? item.waterTemperature ?? item.water_temperature),
     invalid: false,
   };
 };
@@ -112,16 +124,16 @@ const mapStation2 = (item) => {
   return {
     timestamp: parsedTs,
     userFriendlyDate: formatUserFriendlyDate(parsedTs),
-    humidity: item.humidity ?? 0,
-    temperature: item.temperature ?? 0,
-    rainfall: item.rainfall ?? 0,
-    windspeed: item.windspeed ?? 0,
-    irradiation: item.pyrano ?? item.irradiation ?? 0,
+    humidity: toNumberOrZero(item.humidity),
+    temperature: toNumberOrZero(item.temperature),
+    rainfall: toNumberOrZero(item.rainfall),
+    windspeed: toNumberOrZero(item.windSpeed ?? item.windspeed ?? item.wind_speed),
+    irradiation: toNumberOrZero(item.pyrano ?? item.irradiation),
     windDirection: windDirectionToEnglish(item.direction ?? ''),
-    angle: item.angle ?? 0,
-    bmptemperature: item.bmptemperature ?? 0,
-    airpressure: item.airpressure ?? 0,
-    suhuair: item.suhuair ?? 0, // <-- Tambahkan agar field suhuair selalu ada
+    angle: toNumberOrZero(item.angle),
+    bmptemperature: toNumberOrZero(item.bmpTemperature ?? item.bmptemperature ?? item.bmp_temperature),
+    airpressure: toNumberOrZero(item.AirPressure ?? item.airPressure ?? item.airpressure),
+    suhuair: toNumberOrZero(item.suhuAir ?? item.suhuair ?? item.waterTemperature ?? item.water_temperature),
     invalid: false,
   };
 };
@@ -189,12 +201,13 @@ const Download = () => {
   const [resampleInterval, setResampleInterval] = useState(15);
   const [resampleMethod, setResampleMethod] = useState('mean');
 
-  const getSimulationApiUrl = (primaryUrl) => {
+  const getSimulationApiUrl = (primaryUrl, stationType = 'station1') => {
     if (!primaryUrl) return null;
 
     try {
       const parsed = new URL(primaryUrl);
-      return `${parsed.origin}/simulate/petengoran/topic4/history?limit=500`;
+      const topic = stationType === 'station2' ? 'topic5' : 'topic4';
+      return `${parsed.origin}/simulate/petengoran/${topic}/history?limit=500`;
     } catch (_error) {
       return null;
     }
@@ -205,6 +218,18 @@ const Download = () => {
     if (Array.isArray(payload?.data?.result)) return payload.data.result;
     if (Array.isArray(payload)) return payload;
     return [];
+  };
+
+  const appendAtTimeParam = (url, atTimeValue) => {
+    if (!url || !atTimeValue) return url;
+
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.set('atTime', new Date(atTimeValue).toISOString());
+      return parsed.toString();
+    } catch (_error) {
+      return url;
+    }
   };
 
   const fetchMappedData = async (url, mapper) => {
@@ -221,11 +246,15 @@ const Download = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Hapus setLoading(true) untuk menghilangkan delay visual
+        setLoading(true);
         setDataReady(false);
 
-        const station1Url = dataSourceMode === 'simulation' ? getSimulationApiUrl(API_STATION1) : API_STATION1;
-        const station2Url = dataSourceMode === 'simulation' ? getSimulationApiUrl(API_STATION2) : API_STATION2;
+        const station1Url = dataSourceMode === 'simulation'
+          ? getSimulationApiUrl(API_STATION1, 'station1')
+          : appendAtTimeParam(API_STATION1, endDate);
+        const station2Url = dataSourceMode === 'simulation'
+          ? getSimulationApiUrl(API_STATION2, 'station2')
+          : appendAtTimeParam(API_STATION2, endDate);
 
         // Fetch Station 1
         const station1Data = await fetchMappedData(station1Url, mapStation1);
@@ -235,16 +264,17 @@ const Download = () => {
         const station2Data = await fetchMappedData(station2Url, mapStation2);
         setStation2Data(station2Data);
 
-        setDataReady(true);
+        setDataReady(station1Data.length > 0 || station2Data.length > 0);
       } catch (error) {
         setStation1Data([]);
         setStation2Data([]);
         setDataReady(false);
+      } finally {
+        setLoading(false);
       }
-      // Hapus finally block setLoading(false)
     };
     fetchData();
-  }, [dataSourceMode]);
+  }, [dataSourceMode, startDate, endDate]);
 
   const handleSimulationToggle = () => {
     setDataSourceMode((prev) => (prev === 'simulation' ? 'realtime' : 'simulation'));
@@ -252,38 +282,6 @@ const Download = () => {
 
   const handleDownload = () => {
     setShowLogin(true);
-  };
-
-  // Fungsi untuk cek tanggal yang tidak ada data
-  const getMissingDates = (data, startDate, endDate) => {
-    if (!startDate || !endDate) return [];
-    const dateSet = new Set(
-      data.map(item => {
-        if (!item.timestamp) return null;
-        return new Date(item.timestamp).toISOString().slice(0, 10);
-      }).filter(Boolean)
-    );
-    const missing = [];
-    let current = startDate;
-    while (current <= endDate) {
-      if (!dateSet.has(current)) {
-        missing.push(current);
-      }
-      // Tambah 1 hari secara manual
-      const [y, m, d] = current.split('-').map(Number);
-      let year = y, month = m, day = d + 1;
-      const daysInMonth = new Date(year, month, 0).getDate();
-      if (day > daysInMonth) {
-        day = 1;
-        month += 1;
-        if (month > 12) {
-          month = 1;
-          year += 1;
-        }
-      }
-      current = `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    }
-    return missing;
   };
 
   const processDownload = () => {
@@ -295,6 +293,19 @@ const Download = () => {
       alert('Please select both start date and end date.');
       return;
     }
+
+    const startTime = new Date(startDate).getTime();
+    const endTime = new Date(endDate).getTime();
+    if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
+      alert('Rentang waktu tidak valid.');
+      return;
+    }
+
+    if (startTime > endTime) {
+      alert('Start Date & Time tidak boleh lebih besar dari End Date & Time.');
+      return;
+    }
+
     const rawData = getStationData();
     let data = filterDataByDate(rawData);
 
@@ -310,15 +321,7 @@ const Download = () => {
       return;
     }
     if (data.length === 0) {
-      const missingDates = getMissingDates(rawData, startDate, endDate);
-      if (missingDates.length > 0) {
-        alert(
-          `No data available for the selected date range.\n` +
-          `Tanggal berikut tidak ada data:\n${missingDates.join(', ')}`
-        );
-      } else {
-        alert('No data available for the selected date range.');
-      }
+      alert('No data available for the selected date & time range.');
       return;
     }
 
@@ -342,8 +345,9 @@ const Download = () => {
         return;
       }
     }
-
-       let filename = `${selectedStation.replace(' ', '_')}_${startDate}_to_${endDate}`;
+  const safeStart = startDate.replace(/[:]/g, '-').replace('T', '_');
+  const safeEnd = endDate.replace(/[:]/g, '-').replace('T', '_');
+  let filename = `${selectedStation.replace(' ', '_')}_${safeStart}_to_${safeEnd}`;
     if (enableResampling) {
       filename += `_resample${resampleInterval}m`;
     }
@@ -406,10 +410,16 @@ const Download = () => {
 
   const filterDataByDate = (data) => {
     if (!startDate || !endDate) return [];
+
+    const startTime = new Date(startDate).getTime();
+    const endTime = new Date(endDate).getTime();
+    if (Number.isNaN(startTime) || Number.isNaN(endTime)) return [];
+
     return data.filter((item) => {
       if (!item.timestamp) return false;
-      const itemYMD = new Date(item.timestamp).toISOString().slice(0, 10);
-      return itemYMD >= startDate && itemYMD <= endDate;
+      const itemTime = new Date(item.timestamp).getTime();
+      if (Number.isNaN(itemTime)) return false;
+      return itemTime >= startTime && itemTime <= endTime;
     });
   };
 
@@ -453,38 +463,22 @@ const Download = () => {
       <Row className="mt-4">
         <Col md={6}>
           <Form.Group controlId="startDate">
-            <Form.Label className="fw-bold">Start Date</Form.Label>
+            <Form.Label className="fw-bold">Start Date & Time</Form.Label>
             <Form.Control
-              type="date"
+              type="datetime-local"
               value={startDate}
-              onChange={(e) => {
-                const val = e.target.value;
-                let iso = val;
-                if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-                  const [d, m, y] = val.split('/');
-                  iso = `${y}-${m}-${d}`;
-                }
-                setStartDate(iso);
-              }}
+              onChange={(e) => setStartDate(e.target.value)}
               className="shadow-sm"
             />
           </Form.Group>
         </Col>
         <Col md={6}>
           <Form.Group controlId="endDate">
-            <Form.Label className="fw-bold">End Date</Form.Label>
+            <Form.Label className="fw-bold">End Date & Time</Form.Label>
             <Form.Control
-              type="date"
+              type="datetime-local"
               value={endDate}
-              onChange={(e) => {
-                const val = e.target.value;
-                let iso = val;
-                if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-                  const [d, m, y] = val.split('/');
-                  iso = `${y}-${m}-${d}`;
-                }
-                setEndDate(iso);
-              }}
+              onChange={(e) => setEndDate(e.target.value)}
               className="shadow-sm"
             />
           </Form.Group>

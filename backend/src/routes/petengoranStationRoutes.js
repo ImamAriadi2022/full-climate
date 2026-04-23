@@ -11,6 +11,10 @@ router.get(
   createPetengoranStationHandler("station1", "history")
 );
 router.get("/petengoran/station1/latest", createPetengoranStationHandler("station1", "latest"));
+router.get(
+  "/petengoran/station1/activity-calendar",
+  createPetengoranStationHandler("station1", "activity-calendar")
+);
 
 // Station 2 (topic5)
 router.get(
@@ -19,6 +23,10 @@ router.get(
   createPetengoranStationHandler("station2", "history")
 );
 router.get("/petengoran/station2/latest", createPetengoranStationHandler("station2", "latest"));
+router.get(
+  "/petengoran/station2/activity-calendar",
+  createPetengoranStationHandler("station2", "activity-calendar")
+);
 
 // Backward-compatibility aliases
 router.get(
